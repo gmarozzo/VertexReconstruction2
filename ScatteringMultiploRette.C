@@ -14,28 +14,25 @@
 
 
 #define DEBUG 0 // stampa a schermo degli eventi (da implementare)
-#define DEBUG2 1 // controllo degli eventi (istogramma 3-dim)
+#define DEBUG2 0 // controllo degli eventi (istogramma 3-dim)
 #define DEBUG3 0 // controllo degli eventi fuori dal range
-#define DEBUG4  0 // controllo degli eventi di fondo
+#define DEBUG4  1 // controllo degli eventi di fondo
 #define DEBUG5 0 // controllo delle tracce (bug nel debug >-<)
-#define SCTRM 1 // scattering multiplo
+#define DEBUG6 1 // prova per ricostruzione tracce
+#define SCTRM 0 // scattering multiplo
 #define RISOLUZIONE 1 // applica gli effetti di risoluzione del rivelatore
 
-//const double RBP = 30;
-//const double RL1 = 50;
-//const double RL2 = 100;
 
 TH1F* maniphist();
-void propagazione(double const *X0, double const *ang, double *X, double );
-double intersection(double , double , double *c, double );
 void ROTATE(Double_t , Double_t , Double_t , Double_t , Double_t *cd);
 void multiplescattering(double *angs, double *ang, double *cd);
 
 void GeneraTree(){
   
-  TH1D* residui = new TH1D("histTest", "valori in z", 300, -500, 500);
+  TH1D* residui = new TH1D("histTest", "valori in z", 10, -0.2, 0.2);
+  TH1D* zetaveri = new TH1D("hhh","zeta generati",100,-5,5);
   TH3D* palla = new TH3D("palla","sfera",100,-137.1,137.1,100,-137.1,137.1,100,-137.1,137.1);
-  int mult;
+  TH1D* tracket = new TH1D("tracce", "histo", 50, -5., 5.);
   double X, Y, Z;
   double RBP = 30;
   double RL1 = 50;
@@ -45,7 +42,7 @@ void GeneraTree(){
   double deltazeta = 0.12;
   double deltarphi = 0.03;
   int nfondo = 0;
-  
+  int nev = 5e4;
   
   TFile *f1 = new TFile("kinem.root");
   TH1F *pseta = (TH1F*) f1 -> Get("heta");
@@ -90,21 +87,21 @@ void GeneraTree(){
   
   
   //INIZIA IL LOOP SUGLI EVENTI
-  for(int i=0; i<1e2;i++){ // loop sugli eventi
-    if (i%100 == 0)cout<<"Sto processando l' "<< i<<"  esimo evento"<<endl;
+  for(int i=0; i<nev;i++){ // loop sugli eventi
+    //if (i%(nev/10) == 0)cout<<"Sto processando l' "<< i<<"  esimo evento"<<endl;
     // Genero una molteplicità e un vertice
     int numpart=0;
     while(numpart<=0){
       numpart=(int)(0.5+gRandom->Gaus(50.,20.));
     }
     //numpart = 1;
-    X=gRandom->Gaus(1.,0.01);
-    Y=gRandom->Gaus(1.,0.01);
-    Z=gRandom->Gaus(10.,5.3);
+    X=gRandom->Gaus(0,0.01);
+    Y=gRandom->Gaus(0,0.01);
+    Z=gRandom->Gaus(0.,0.2);
+    zetaveri->Fill(Z);
 
     Vertex2 *vrt = new  Vertex2(X, Y, Z, numpart);
-    ptrvrt = vrt;
-    
+    ptrvrt = vrt;  
     
     // Generato il vertice passo alla macro che gestisce gli hit.
     // Un hit viene creato a partire da un angolo theta, da un angolo phi e da un counter + posizione x, y, z
@@ -113,8 +110,6 @@ void GeneraTree(){
       double X0_L2[3];
       double ang[2];
       double position[3];
-      double angs[2]; // angolo di scattering
-      double cd[3]; // versore per angolo di scattering
       //ANGOLI DI PARTENZA
       double theta = pseta -> GetRandom();
       double phi = (gRandom -> Rndm())*2.*M_PI;
@@ -134,9 +129,9 @@ void GeneraTree(){
       X0_L1[1] = position[1];
       X0_L1[2] = position[2];
       if(SCTRM){
-      angs[0] = (gRandom -> Rndm())*0.1*M_PI;
-      angs[1] = (gRandom -> Rndm())*2.*M_PI;
-      multiplescattering(angs, ang, cd);
+      retta1->multiplescattering();
+      ang[0]=retta1->GetTheta();
+      ang[1]=retta1->GetPhi();
       }
       Retta *retta2 = new Retta(position,ang);
       retta2->intpoint(position, RL1); 
@@ -155,9 +150,9 @@ void GeneraTree(){
       X0_L2[1] = position[1];
       X0_L2[2] = position[2];
       if(SCTRM){
-      angs[0] = (gRandom -> Rndm())*0.1*M_PI; // QUALE DISTRIBUZIONE USARE?
-      angs[1] = (gRandom -> Rndm())*2.*M_PI;
-      multiplescattering(angs, ang, cd);
+      retta2->multiplescattering();
+      ang[0]=retta2->GetTheta();
+      ang[1]=retta2->GetPhi();
       }
       Retta *retta3 = new Retta(position,ang);
       retta3->intpoint(position, RL2); 
@@ -165,7 +160,7 @@ void GeneraTree(){
       Hit2 *tst2=(Hit2*)Hit_L2->At(j);
       if (fabs(position[2]) >= 27) tst2 ->SetStatus(-999);
       #if RISOLUZIONE
-      // SIMULAZIONE DELLA RISOLUZONE DEL RIVELATORE
+      // SIMULAZIONE DELLA RISOLUZIONE DEL RIVELATORE
       zetars = gRandom->Gaus(tst2 -> GetZP(),deltazeta);
       phirs =  gRandom->Gaus(tst2 -> GetPhi(),deltarphi/RL2);
       tst2 -> Rec_Z = zetars;
@@ -183,14 +178,14 @@ void GeneraTree(){
     ang[1] = (gRandom -> Rndm())*2.*M_PI;
     position[2] = Zmin1 + (gRandom -> Rndm())*(Zmax1 - Zmin1);
     
-    ang[0] = TMath::ACos(position[2]/RL1);
+    ang[0] = TMath::ATan(position[2]/RL1);
     position[0] = RL1 * TMath::Sin(ang[0])*TMath::Cos(ang[1]);
     position[1] = RL1 * TMath::Sin(ang[0])*TMath::Sin(ang[1]);
     
     new(hl1[i])Hit2(ang[0], ang[1], position, -999);
     
     /*
-    // SIMULAZIONE DELLA RISOLUZONE DEL RIVELATORE
+    // SIMULAZIONE DELLA RISOLUZIONE DEL RIVELATORE
     Hit2 *tst1=(Hit2*)Hit_L1->At(i);
     tst1 -> Rec_Z = position[2];
     tst1 -> Rec_Phi = ang[1];
@@ -199,7 +194,7 @@ void GeneraTree(){
     ang[1] = (gRandom -> Rndm())*2.*M_PI;
     position[2] = Zmin2 + (gRandom -> Rndm())*(Zmax2 - Zmin2);
     
-    ang[0] = TMath::ACos(position[2]/RL2);
+    ang[0] = TMath::ATan(position[2]/RL2);
     position[0] = RL2 * TMath::Sin(ang[0])*TMath::Cos(ang[1]);
     position[1] = RL2 * TMath::Sin(ang[0])*TMath::Sin(ang[1]);
     
@@ -272,6 +267,7 @@ void GeneraTree(){
       double zz = tst -> GetZP();
       palla->Fill(xx, yy, zz);
       }
+    
     new TCanvas(canvas,titolo,600,600);
     palla -> SetMarkerSize(0.5);
     palla -> SetMarkerStyle(20);
@@ -329,10 +325,12 @@ void GeneraTree(){
         palla->Fill(xx, yy, zz);
       }
     }
+    /*
     new TCanvas(canvas,titolo,600,600);
     palla -> SetMarkerSize(0.5);
     palla -> SetMarkerStyle(20);
     palla -> DrawCopy();
+    */
     palla -> Reset();
     
     }
@@ -401,49 +399,65 @@ void GeneraTree(){
     }
     // fine del debug
     #endif
+
+    #if DEBUG6
+    
+    
+    for(int l =0; l < hl2.GetEntries(); l++){
+      Hit2 *tst2 = (Hit2*)Hit_L2->At(l);
+      if(1/*tst2 -> GetStatus() != -999*/){
+        double Phi2 = tst2 ->GetPhi();
+        double Z2 = tst2 -> GetZP();
+        double counter = tst2 -> GetCounter();
+        for(int k = 0; k < hl1.GetEntries(); k++){
+          Hit2 *tst1 = (Hit2*)Hit_L1->At(k);
+          if(1/*(tst1 -> GetStatus() != -999) && (counter = tst1 -> GetCounter())*/){
+            double Phi1 = tst1 -> GetPhi();
+            double Z1 = tst1 -> GetZP();
+            if(abs(Phi1-Phi2)<1){
+              double m = (RL2 - RL1)/(Z2 - Z1);
+              double q = RL1-m*Z1;
+              double  Zrec = - q / m;
+              tracket -> Fill(Zrec);
+            } 
+          }   
+        }  
+      }
+    }
+    int binmax = tracket->GetMaximumBin(); 
+    double Zvalue = tracket ->GetXaxis()->GetBinCenter(binmax);
+    /*if(i%(nev/10) == 0) {
+      char canvas[50];
+      char titolo[50];
+      sprintf(canvas, "cv %d", i/10 + 1);
+      sprintf(titolo, "evento %d", i);
+      new TCanvas(canvas,titolo,600,600);
+      //tracket-> DrawCopy();
+    }
+    */
+
+    //cout<<Zvalue<<"  "<<i<<endl;
+    //cout<<ptrvrt -> GetZ()<<endl;
+    tracket -> Reset();
+    residui -> Fill(Zvalue - (ptrvrt -> GetZ()));
+    
+    #endif
     tree->Fill();
     Hit_BP->Clear();
     Hit_L1 ->Clear();
     Hit_L2 ->Clear();
   }
-
+  /*
+  new TCanvas("c1","zeta veri",600,600);
+  zetaveri ->DrawCopy();
+  */
+  new TCanvas("c2","residui",600,600);
+  residui ->DrawCopy();
   // Save all objects in this file
   hfile.Write();
 
   // Close the file. 
   hfile.Close();
-}
-
-
-
-
-double intersection(double x0, double y0, double *c, double R){
-  double c1 = c[0];
-  double c2 = c[1];
-  double Delta = (x0*c1 + y0*c2)*(x0*c1 + y0*c2) - (c1*c1 + c2*c2)*(x0*x0 +  y0*y0 - R*R);
-  double t1 = -((x0*c1 + y0*c2) + sqrt(Delta)) / (c1*c1 + c2*c2);
-  double t2 = -((x0*c1 + y0*c2) - sqrt(Delta)) / (c1*c1 + c2*c2);
-  if (t1 > 0) return t1;
-  return t2;
-}
-
-
-void propagazione(double const *X0, double const *ang, double *X, double R){
-  double x0 = X0[0];
-  double y0 = X0[1];
-  double z0 = X0[2];
-
-
-  double th = ang[0];
-  double pphi = ang[1];
-  double c[3];
-  c[0]=TMath::Sin(th)*TMath::Cos(pphi);
-  c[1]=TMath::Sin(th)*TMath::Sin(pphi);
-  c[2] = TMath::Cos(th);
-  double t = intersection(x0, y0, c, R);
-  X[0] = x0 + t*c[0];
-  X[1] = y0 + t*c[1];
-  X[2] = z0 + t*c[2];
 }
 
 TH1F* maniphist(){
@@ -471,39 +485,3 @@ TH1F* maniphist(){
   //heta2->Draw("same");
   return heta2;
 }
-
-void ROTATE(Double_t th, Double_t ph, Double_t thp, Double_t php, Double_t *cd){
-  double_t mr[3][3];
-
-  mr[0][0] = -TMath::Sin(ph);
-  mr[1][0] = TMath::Cos(ph);
-  mr[2][0] = 0.;
-  mr[0][1] = -TMath::Cos(ph)*TMath::Cos(th);
-  mr[1][1] = -TMath::Cos(th)*TMath::Sin(ph);
-  mr[2][1] = TMath::Sin(th);
-  mr[0][2] = TMath::Sin(th)*TMath::Cos(ph);
-  mr[1][2] = TMath::Sin(th)*TMath::Sin(ph);
-  mr[2][2] = TMath::Cos(th);
-
-
-  Double_t cdp[3];
-  cdp[0] = TMath::Sin(thp)*TMath::Cos(php);
-  cdp[1] = TMath::Sin(thp)*TMath::Sin(php);
-  cdp[2] = TMath::Cos(thp);
-  for(Int_t i = 0; i < 3; i++){
-    cd[i]=0.;
-    for(Int_t j = 0; j < 3; j++){
-        cd[i] += mr[i][j]*cdp[j];
-    }  
-  }
-}
-
-void multiplescattering(double *angs, double *ang, double *cd){
-  ROTATE(ang[0], ang[1], angs[0], angs[1], cd);
-  double theta = TMath::ACos(cd[2]);
-  double phi = atan2(cd[1], cd[0]);
-  ang[0] = theta;
-  ang[1] = phi;
-}
-
-
