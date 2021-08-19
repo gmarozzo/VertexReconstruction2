@@ -87,7 +87,7 @@ void Retta::Rotate(Double_t th, Double_t ph, Double_t thp, Double_t php, Double_
 }
 
 void Retta::multiplescattering(){
-  gRandom = new TRandom3();
+  //gRandom = new TRandom3();
   double cd[3];
   double angs0=gRandom->Gaus(0,0.001);
   double angs1=(gRandom -> Rndm())*2.*M_PI;
