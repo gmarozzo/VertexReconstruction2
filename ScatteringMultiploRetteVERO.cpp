@@ -30,7 +30,7 @@ void multiplescattering(double *angs, double *ang, double *cd);
 void GeneraTree(){
   
   TH1D* residui = new TH1D("histTest", "valori in z", 50, -0.1, 0.1);
-  TH1D* zetaveri = new TH1D("hhh","zeta generati",100,-5,5);
+  TH1D* zetaveri = new TH1D("hhh","zeta generati",50,-20,20);
   TH3D* palla = new TH3D("palla","sfera",100,-137.1,137.1,100,-137.1,137.1,100,-137.1,137.1);
   TH1D* tracket = new TH1D("tracce", "histo", 100, -5., 5.);
   double X, Y, Z;
@@ -42,7 +42,7 @@ void GeneraTree(){
   double deltazeta = 0.12;
   double deltarphi = 0.03;
   int nfondo = 10;
-  int nev = 1e4;
+  int nev = 1e6;
   
   TFile *f1 = new TFile("kinem.root");
   TH1F *pseta = (TH1F*) f1 -> Get("heta");
@@ -99,10 +99,10 @@ void GeneraTree(){
     X=gRandom->Gaus(0,0.01);
     Y=gRandom->Gaus(0,0.01);
     Z=gRandom->Gaus(0.,5.3);
-    zetaveri->Fill(Z);
     
     Vertex2 *vrt = new  Vertex2(X, Y, Z, numpart);
-    ptrvrt = vrt;  
+    ptrvrt = vrt;
+    zetaveri->Fill(ptrvrt->GetZ());
     
     // Generato il vertice passo alla macro che gestisce gli hit.
     // Un hit viene creato a partire da un angolo theta, da un angolo phi e da un counter + posizione x, y, z

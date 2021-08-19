@@ -54,15 +54,20 @@ void LeggiTree(){
   b2->SetAddress(&Hit_BP);
   b3->SetAddress(&Hit_L1);
   b4->SetAddress(&Hit_L2);
-  
 
-  TH1D* efficienza = new TH1D("histeff", "efficienza", 101, -0.5, 100.5);
-  TH1D* residui = new TH1D("histTest", "valori in z", 100, -0.15, 0.15);
   TH1D* tracklet = new TH1D("tracce", "histo", 100, -25., 25.);
-  
-  TH1D* risoluzione = new TH1D("hrisol", "risoluzione", 100, 0.5, 100.5);
+  TH1D* residui = new TH1D("histTest", "valori in z", 100, -0.15, 0.15); 
+
+  TH1D* efficienza = new TH1D("histeff", "efficienza vs mult", 100, 0.5, 100.5); 
+  TH1D* risoluzione = new TH1D("hrisol", "risoluzione vs mult", 100, 0.5, 100.5);
   TH1D* molteplicita = new TH1D("histmolt", "molteplicita'", 100, 0.5, 100.5);
   TH1D* evtric = new TH1D("histmolt2", "ev rec'", 100, 0.5, 100.5);
+
+  TH1D* efficienzaz = new TH1D("histeff2", "efficienza vs z vertice", 10, -20, 20);
+  TH1D* risoluzionez = new TH1D("hrisol2", "risoluzione vs z vertice", 10, -20, 20);
+  TH1D* zvertice = new TH1D("hz", "z vertice generato", 10, -20, 20);
+  TH1D* zvertric = new TH1D("hzric", "z vertice ricostruito", 10, -20, 20);
+  
   double RL1 = 4., RL2 = 7.;
   double deltazeta = 0.012;
   double deltarphi = 0.003;
@@ -86,35 +91,59 @@ void LeggiTree(){
     float residuo = Zvalue - (ptrvrt -> GetZ());
     residui -> Fill(residuo);
     int mult = ptrvrt -> GetMult();
+    double zvert = ptrvrt -> GetZ();
     molteplicita -> Fill(mult);
+    zvertice-> Fill(zvert);
     if(fabs(residuo) <= 3*sqrt(varianza)){
     evtric -> Fill(mult);
+    zvertric -> Fill(zvert);
     if(mult >= 1) sommaresidui[mult - 1] += (residuo*residuo);
     if(fabs(sommaresidui[mult - 1]) > 1e5) cout<<"!!WARNING!!"<<residuo<<" , "<<ptrvrt -> GetMult()<<endl;
+    risoluzionez->Fill(zvert,residuo*residuo);
     }
   }
   new TCanvas("c0","evtric",600,600);
-  evtric -> DrawCopy();
+  //evtric -> DrawCopy();
+  zvertric -> DrawCopy();
   
   new TCanvas("c1","molteplicità",600,600);
-  molteplicita -> DrawCopy();
+  //molteplicita -> DrawCopy();
+  zvertice -> DrawCopy();
 
   for(int i = 0; i < 100; i++){
     int mult = molteplicita -> GetBinContent(i + 1);
     if(mult != 0){
     int eventiric = evtric -> GetBinContent(i + 1);
-    efficienza -> Fill(i + 1, double(eventiric)/double(mult));
+    efficienza -> SetBinContent(i + 1, double(eventiric)/double(mult));}
+  }
+
+  for(int i = 0; i < 10; i++){
+    double zvert = zvertice -> GetBinContent(i+1);
+    if(zvert != 0){
+    double zverticeric = zvertric -> GetBinContent(i+1);
+    efficienzaz -> SetBinContent(i+1,(double)zverticeric/zvert);
     }
    }
+    
+  
   
   for(int i = 0; i < 100; i++){
     int eventi = evtric -> GetBinContent(i + 1);
     if(eventi > 1e-12){
-    risoluzione -> Fill(i + 1, sqrt(sommaresidui[i]/eventi));
+      risoluzione -> Fill(i + 1, sqrt(sommaresidui[i]/(eventi-1)));
     //cout<<"risoluzione "<< sqrt(sommaresidui[i]/eventi)<<endl;
     //cout<<"sommaresidui"<< sommaresidui[i]<<endl;
     }
   }
+
+  for(int i = 0; i < 10; i++){
+    int eventi = zvertric -> GetBinContent(i + 1);
+    if(eventi > 1){
+      risoluzionez -> SetBinContent(i + 1, sqrt(risoluzionez->GetBinContent(i+1)/(eventi-1)));
+      cout<<risoluzionez->GetBinContent(i+1)<<endl;
+    }
+  }
+  
 
 
   new TCanvas("c2","residui",600,600);
@@ -124,10 +153,19 @@ void LeggiTree(){
   efficienza -> SetMarkerStyle(20);
   efficienza -> SetMarkerSize(1);
   efficienza -> DrawCopy("histp");
+  
+  new TCanvas("c5","efficienzaz",600,600);
+  efficienzaz -> SetMarkerStyle(20);
+  efficienzaz -> SetMarkerSize(1);
+  efficienzaz -> DrawCopy("histp");
   new TCanvas("c4","risoluzione",600,600);
   risoluzione -> SetMarkerStyle(20);
   risoluzione -> SetMarkerSize(1);
   risoluzione -> DrawCopy("histp");
+  new TCanvas("c6","risoluzione",600,600);
+  risoluzionez -> SetMarkerStyle(20);
+  risoluzionez -> SetMarkerSize(1);
+  risoluzionez -> DrawCopy("histp");
 }
 
 
@@ -241,5 +279,3 @@ double recons(TClonesArray *Hit_L2, TClonesArray *Hit_L1, TH1D *tracklet){
     //tracklet -> GetXaxis() -> SetRange(0, 100);
     return MediaVector;
   }
-
-
