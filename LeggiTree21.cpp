@@ -19,7 +19,7 @@ double recons(TClonesArray *, TClonesArray* , TH1D*);
 double recons2(TClonesArray *, TClonesArray*, double &varianza);
 
 void LeggiTree(){
-  gErrorIgnoreLevel = kError;
+  //gErrorIgnoreLevel = kError;
   vector <double> Zricostruiti;
   // definizione classe vertice
   Vertex2 *ptrvrt = nullptr;
@@ -55,7 +55,7 @@ void LeggiTree(){
   b3->SetAddress(&Hit_L1);
   b4->SetAddress(&Hit_L2);
 
-  TH1D* tracklet = new TH1D("tracce", "histo", 100, -25., 25.);
+  //TH1D* tracklet = new TH1D("tracce", "histo", 100, -25., 25.);
   TH1D* residui = new TH1D("histTest", "valori in z", 100, -0.15, 0.15); 
 
   TH1D* efficienza = new TH1D("histeff", "efficienza vs mult", 100, 0.5, 100.5); 
@@ -75,12 +75,6 @@ void LeggiTree(){
   for(int i = 0; i < 100; i++){
       sommaresidui[i] = 0.;
   }
-  /*// loop sugli ingressi nel TTree
-  for(int ev = 0; ev< tree -> GetEntries(); ev++){
-  tree->GetEvent(ev);
-  molteplicita -> Fill(ptrvrt->GetMult());
-  }
-  */
 
   for(int ev=0;ev<tree->GetEntries();ev++){
     double varianza = 0.;
@@ -129,7 +123,7 @@ void LeggiTree(){
   
   for(int i = 0; i < 100; i++){
     int eventi = evtric -> GetBinContent(i + 1);
-    if(eventi > 1e-12){
+    if(eventi > 1){
       risoluzione -> Fill(i + 1, sqrt(sommaresidui[i]/(eventi-1)));
     //cout<<"risoluzione "<< sqrt(sommaresidui[i]/eventi)<<endl;
     //cout<<"sommaresidui"<< sommaresidui[i]<<endl;
@@ -261,7 +255,7 @@ double recons(TClonesArray *Hit_L2, TClonesArray *Hit_L1, TH1D *tracklet){
     double MediaVector = 0.;
     int contatore = 0;
     //BRUTTO DA RIVEDERE
-    for(int i = 0; i < Zricostruiti.size(); i++){
+    for(int i = 0; i < (int)Zricostruiti.size(); i++){
       if (fabs(Zricostruiti[i] - Media) <= 0.25){
       MediaVector += Zricostruiti[i];
       contatore ++;
@@ -269,13 +263,14 @@ double recons(TClonesArray *Hit_L2, TClonesArray *Hit_L1, TH1D *tracklet){
     }
     MediaVector = MediaVector/contatore;
     
-    for(int i = 0; i < Zricostruiti.size(); i++){
+    for(int i = 0; i < (int)Zricostruiti.size(); i++){
       if (fabs(Zricostruiti[i] - Media) <= 0.25){
       double x = (MediaVector - Zricostruiti[i]);
       varianza += x*x/(contatore - 1);
       }
     }
-    
+    tracklet->~TH1D();
+    //Destroy();
     //tracklet -> GetXaxis() -> SetRange(0, 100);
     return MediaVector;
   }

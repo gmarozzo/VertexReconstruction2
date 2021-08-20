@@ -11,7 +11,7 @@
 #include "TH1.h"
 #include "TCanvas.h"
 #include <TH3D.h>
-
+#include <string.h>
 
 #define DEBUG 0 // stampa a schermo degli eventi (da implementare)
 #define DEBUG2 0 // controllo degli eventi (istogramma 3-dim)
@@ -19,7 +19,7 @@
 #define DEBUG4  0 // controllo degli eventi di fondo
 #define DEBUG5 0 // controllo delle tracce (bug nel debug >-<)
 #define DEBUG6 0 // prova per ricostruzione tracce
-#define SCTRM 1 // scattering multiplo
+//#define SCTRM 1 // scattering multiplo
 #define RISOLUZIONE 1 // applica gli effetti di risoluzione del rivelatore
 
 
@@ -27,13 +27,14 @@ TH1F* maniphist();
 void ROTATE(Double_t , Double_t , Double_t , Double_t , Double_t *cd);
 void multiplescattering(double *angs, double *ang, double *cd);
 
-void GeneraTree(){
+void GeneraTree(const int nev = 1e4, const int nfondo = 10, const bool SCTRM = 0, string histomult = "default",
+                string histotheta = "default", bool UseDefaultZeta = 1, double devsctr = 0.001){
   
-  TH1D* residui = new TH1D("histTest", "valori in z", 50, -0.1, 0.1);
-  TH1D* zetaveri = new TH1D("hhh","zeta generati",50,-20,20);
-  TH3D* palla = new TH3D("palla","sfera",100,-137.1,137.1,100,-137.1,137.1,100,-137.1,137.1);
-  TH1D* tracket = new TH1D("tracce", "histo", 100, -5., 5.);
-  double X, Y, Z;
+  TH1D* zetaveri = new TH1D("hhh","zeta generati",100,-20,20);
+  TH3D* palla = new TH3D("palla","sfera",100,-15.1,15.1,100,-15.1,15.1,100,-15.1,15.1);
+  
+  
+  // parametri dell'esperimento
   double RBP = 3.;
   double RL1 = 4.;
   double RL2 = 7.;
@@ -41,16 +42,31 @@ void GeneraTree(){
   double Zmin2 = -13.5, Zmax2 = 13.5;
   double deltazeta = 0.12;
   double deltarphi = 0.03;
-  int nfondo = 10;
-  int nev = 1e6;
-  
+  bool UseDefaultTheta = 1;
+  bool UseDefaultMult = 1;
+
+  TH1F *pseta = new TH1F();
+  //if (!histotheta.Contains("default")){
+  if(histotheta.find("default") == string::npos){
   TFile *f1 = new TFile("kinem.root");
-  TH1F *pseta = (TH1F*) f1 -> Get("heta");
+  pseta = (TH1F*) f1 -> Get(histotheta.c_str());
   pseta -> SetDirectory(0);
   f1 -> Close();
+  UseDefaultTheta = 0;
+  }
+
+  TH1F *hmult = new TH1F();
+  //if (!histotheta.Contains("default")){
+  if(histomult.find("default") == string::npos){
+  TFile *f1 = new TFile("kinem.root");
+  hmult = (TH1F*) f1 -> Get(histomult.c_str());
+  hmult -> SetDirectory(0);
+  f1 -> Close();
+  UseDefaultMult = 0;
+  }
   
-  TH1F *heta = maniphist();
-  //heta -> Draw();
+
+  
   
   // Apertura del file di output
   TFile hfile("htree.root","RECREATE");
@@ -90,30 +106,43 @@ void GeneraTree(){
   for(int i=0; i<nev;i++){ // loop sugli eventi
     if (i%(nev/10) == 0)cout<<"Sto processando l' "<< i<<"  esimo evento"<<endl;
     // Genero una molteplicità e un vertice
-    int numpart=0;
-    //while(numpart<=0){
-      numpart=(int)(0.5+gRandom->Gaus(50.,20.));
-    //}
-    
-    numpart = int((gRandom -> Rndm())*100);
+    int numpart = 0;
+
+    if(UseDefaultMult){
+      numpart = int((gRandom -> Rndm())*100);
+    }
+    else{
+      numpart = hmult -> GetRandom();
+    }
+    double X, Y, Z; // coordinate del vertice
     X=gRandom->Gaus(0,0.01);
     Y=gRandom->Gaus(0,0.01);
-    Z=gRandom->Gaus(0.,5.3);
+    
+    if(UseDefaultZeta){
+      Z=gRandom->Gaus(0.,5.3);
+    }
+    else{
+      Z = -20 + (gRandom -> Rndm())*40;
+    }
+    zetaveri->Fill(Z);
     
     Vertex2 *vrt = new  Vertex2(X, Y, Z, numpart);
-    ptrvrt = vrt;
-    zetaveri->Fill(ptrvrt->GetZ());
+    ptrvrt = vrt;  
     
     // Generato il vertice passo alla macro che gestisce gli hit.
     // Un hit viene creato a partire da un angolo theta, da un angolo phi e da un counter + posizione x, y, z
     for(int j = 0; j < numpart; j++){
-      double X0_L1[3];
-      double X0_L2[3];
       double ang[2];
       double position[3];
+      double theta, phi;
       //ANGOLI DI PARTENZA
-      double theta = pseta -> GetRandom();
-      double phi = (gRandom -> Rndm())*2.*M_PI;
+      if(UseDefaultTheta){
+        theta = TMath::ACos(gRandom -> Rndm());
+      }
+      else{
+        theta = pseta -> GetRandom();
+      }
+      phi = (gRandom -> Rndm())*2.*M_PI;
       ang[0]=theta;
       ang[1]=phi;
       position[0]=X;
@@ -122,51 +151,29 @@ void GeneraTree(){
       Retta *retta1 = new Retta(position,ang);
       retta1->intpoint(position, RBP);   
       new(hbp[j])Hit2(ang[0], ang[1], position, j);
-      //Hit2 *tst0=(Hit2*)Hit_BP->At(j);
-      //if (fabs(position[2]) >= 27) tst0 ->SetStatus(-999);
       
       // LAYER 1
-      X0_L1[0] = position[0];
-      X0_L1[1] = position[1];
-      X0_L1[2] = position[2];
       if(SCTRM){
-      retta1->multiplescattering();
-      ang[0]=retta1->GetTheta();
-      ang[1]=retta1->GetPhi();
+        retta1->multiplescattering();
+        ang[0]=retta1->GetTheta();
+        ang[1]=retta1->GetPhi();
       }
       Retta *retta2 = new Retta(position,ang);
       retta2->intpoint(position, RL1); 
       new(hl1[j])Hit2(ang[0], ang[1], position, j );
       Hit2 *tst1=(Hit2*)Hit_L1->At(j);
-      if (fabs(position[2]) >= 13.5) tst1 ->SetStatus(-999);
-      #if RISOLUZIONE
-      // SIMULAZIONE DELLA RISOLUZONE DEL RIVELATORE
-      double zetars = gRandom->Gaus(tst1 -> GetZP(),deltazeta);
-      double phirs =  gRandom->Gaus(tst1 -> GetPhi(),deltarphi/RL1);
-      tst1 -> Rec_Z = zetars;
-      tst1 -> Rec_Phi = phirs; 
-      #endif
+      if (fabs(position[2]) >= Zmax1) tst1 ->SetStatus(-999);
       // LAYER 2
-      X0_L2[0] = position[0];
-      X0_L2[1] = position[1];
-      X0_L2[2] = position[2];
       if(SCTRM){
-      retta2->multiplescattering();
-      ang[0]=retta2->GetTheta();
-      ang[1]=retta2->GetPhi();
+        retta2->multiplescattering();
+        ang[0]=retta2->GetTheta();
+        ang[1]=retta2->GetPhi();
       }
       Retta *retta3 = new Retta(position,ang);
       retta3->intpoint(position, RL2); 
       new(hl2[j])Hit2(ang[0], ang[1], position, j);
       Hit2 *tst2=(Hit2*)Hit_L2->At(j);
-      if (fabs(position[2]) >= 13.5) tst2 ->SetStatus(-999);
-      #if RISOLUZIONE
-      // SIMULAZIONE DELLA RISOLUZIONE DEL RIVELATORE
-      zetars = gRandom->Gaus(tst2 -> GetZP(),deltazeta);
-      phirs =  gRandom->Gaus(tst2 -> GetPhi(),deltarphi/RL2);
-      tst2 -> Rec_Z = zetars;
-      tst2 -> Rec_Phi = phirs;  
-      #endif   
+      if (fabs(position[2]) >= Zmax2) tst2 ->SetStatus(-999);  
     }
 
 
@@ -180,32 +187,21 @@ void GeneraTree(){
     position[2] = Zmin1 + (gRandom -> Rndm())*(Zmax1 - Zmin1);
     
     ang[0] = TMath::ATan(RL1/position[2]);
-    position[0] = RL1 * TMath::Sin(ang[0])*TMath::Cos(ang[1]);
-    position[1] = RL1 * TMath::Sin(ang[0])*TMath::Sin(ang[1]);
+    position[0] = RL1 * TMath::Cos(ang[1]);
+    position[1] = RL1 * TMath::Sin(ang[1]);
     
     new(hl1[i])Hit2(ang[0], ang[1], position, -999);
     
-    /*
-    // SIMULAZIONE DELLA RISOLUZIONE DEL RIVELATORE
-    Hit2 *tst1=(Hit2*)Hit_L1->At(i);
-    tst1 -> Rec_Z = position[2];
-    tst1 -> Rec_Phi = ang[1];
-    */
     // simulazione del fondo sul layer 2
     ang[1] = (gRandom -> Rndm())*2.*M_PI;
     position[2] = Zmin2 + (gRandom -> Rndm())*(Zmax2 - Zmin2);
     
     ang[0] = TMath::ATan(RL2/position[2]);
-    position[0] = RL2 * TMath::Sin(ang[0])*TMath::Cos(ang[1]);
-    position[1] = RL2 * TMath::Sin(ang[0])*TMath::Sin(ang[1]);
+    position[0] = RL2 * TMath::Cos(ang[1]);
+    position[1] = RL2 * TMath::Sin(ang[1]);
     
     new(hl2[i])Hit2(ang[0], ang[1], position, -999);
-    /*
-    // SIMULAZIONE DELLA RISOLUZONE DEL RIVELATORE
-    Hit2 *tst2=(Hit2*)Hit_L2->At(i);
-    tst2 -> Rec_Z = position[2];
-    tst2 -> Rec_Phi = ang[1];
-    */
+    
     }
     
     
@@ -242,7 +238,7 @@ void GeneraTree(){
     #if DEBUG2
     // Debug
     
-    if(i%10 == 0){
+    if(i%(nev/10) == 0){
     char titolo[50];
     char canvas[50];
     sprintf(canvas, "cv %d", i/10 + 1);
@@ -451,9 +447,7 @@ void GeneraTree(){
   
   new TCanvas("c1","zeta veri",600,600);
   zetaveri ->DrawCopy();
-  
-  new TCanvas("c2","residui",600,600);
-  residui ->DrawCopy();
+
   // Save all objects in this file
   hfile.Write();
 
